@@ -149,8 +149,8 @@ class MainActivity : AppCompatActivity() {
         logoBox.addView(android.widget.ImageView(this).apply {
             setImageResource(R.drawable.logo_kredo)
             adjustViewBounds = true
-            contentDescription = "Kredo"
-        }, FrameLayout.LayoutParams(dp(210), WRAP, Gravity.CENTER_HORIZONTAL))
+            contentDescription = "Kredo Immorechner"
+        }, FrameLayout.LayoutParams(dp(260), WRAP, Gravity.CENTER_HORIZONTAL))
         val ver = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         logoBox.addView(text(ver, 10f, DIM), FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP or Gravity.END))
         col.addView(logoBox, LinearLayout.LayoutParams(MATCH, WRAP))
