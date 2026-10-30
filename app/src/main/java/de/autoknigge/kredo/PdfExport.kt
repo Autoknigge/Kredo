@@ -244,7 +244,8 @@ object PdfExport {
             // Diagramm auf einem eigenen Blatt
             w.newPage()
             w.heading("Restschuld im Verlauf")
-            val ch = 330f
+            val ch = 440f
+            w.y += 28f
             drawChart(w.c!!, M, w.y + 4f, W - 2 * M, ch, lo.amount, s.base, s.withEx)
             w.y += ch + 14f
             w.paragraph("Die durchgezogene Linie zeigt die Restschuld mit Sonderzahlungen, die gestrichelte ohne. Die Punkte markieren die Sonderzahlungen. Unten steht die Zeit in Jahren seit Beginn der Rückzahlung.", 9f, DIM)
