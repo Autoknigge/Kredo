@@ -31,12 +31,12 @@ object Calc {
         return if (v.isFinite()) v else null
     }
 
-    class Costs(val price: Double, val g: Double, val nt: Double, val mk: Double, val eq: Double) {
+    class Costs(val price: Double, val g: Double, val nt: Double, val mk: Double, val eq: Double, val other: Double = 0.0) {
         val gAmt = price * g / 100
         val mkAmt = price * mk / 100
         val ntAmt = price * nt / 100
         val extra = gAmt + mkAmt + ntAmt
-        val total = price + extra
+        val total = price + extra + other
         val need = max(0.0, total - eq)
     }
 

@@ -44,6 +44,7 @@ class MainActivity : AppCompatActivity() {
         private val TEAL = Color.parseColor("#46C2AE")
         private val BRASS = Color.parseColor("#E0A64A")
         private val BAD = Color.parseColor("#EE8A79")
+        private val RED = Color.parseColor("#FF2B2B")
         private val PANEL = Color.parseColor("#142622")
         private val FIELD = Color.parseColor("#0F1F1C")
         private val LINE = Color.parseColor("#28413B")
@@ -71,6 +72,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var notar: EditText
     private lateinit var brokerPct: EditText
     private lateinit var equity: EditText
+    private lateinit var other: EditText
     private lateinit var amount: EditText
     private lateinit var rate: EditText
     private lateinit var years: EditText
@@ -170,6 +172,8 @@ class MainActivity : AppCompatActivity() {
         brokerPct = addField(bb, "Maklerprovision inkl. MwSt.", "%", true)
         brokerBox = bb
         kauf.addView(bb, lp(top = 6))
+        other = addField(kauf, "Sonstige Anschaffungskosten", "€", true)
+        kauf.addView(text("Zum Beispiel Einbauküche, Entrümpelung, Heizung, Malerarbeiten. Bei älteren Häusern kommt oft Sanierungs- und Modernisierungsbedarf dazu. Lass dir dafür Angebote geben und trage die Summe ein.", 11.5f, DIM), lp(top = 4))
         equity = addField(kauf, "Eigenkapital", "€", true)
         costsBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         kauf.addView(costsBox, lp(top = 12))
@@ -336,7 +340,7 @@ class MainActivity : AppCompatActivity() {
         if (startM > 12) { startM = 1; startY++ }
         applyDefaults()
         load()
-        for (e in listOf(price, gest, notar, brokerPct, equity, amount, rate, years, tilg, bind, flat, flatFrom, flatTo)) {
+        for (e in listOf(price, gest, notar, brokerPct, other, equity, amount, rate, years, tilg, bind, flat, flatFrom, flatTo)) {
             e.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c2: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c2: Int) {}
@@ -471,7 +475,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyDefaults() {
         price.setText("400.000"); stateName = "Niedersachsen"; gest.setText("5,0"); notar.setText("2,0")
-        brokerCheck.isChecked = true; brokerPct.setText("3,57"); equity.setText("80.000"); autoCheck.isChecked = true
+        brokerCheck.isChecked = true; brokerPct.setText("3,57"); other.setText(""); equity.setText("80.000"); autoCheck.isChecked = true
         amount.setText("320.000"); rate.setText("3,80"); years.setText("25"); tilg.setText("2,0"); bind.setText("10"); termMode = 0
         flatMode = 1; flat.setText("5.000"); flatMonth = 12; flatFrom.setText("1"); flatTo.setText("")
         custom.clear(); custom.add(Custom("15.000", "36"))
@@ -636,7 +640,8 @@ class MainActivity : AppCompatActivity() {
         val nt = (Calc.parseNum(notar.text.toString()) ?: 0.0).coerceAtLeast(0.0)
         val mk = if (brokerCheck.isChecked) (Calc.parseNum(brokerPct.text.toString()) ?: 0.0).coerceAtLeast(0.0) else 0.0
         val eq = (Calc.parseNum(equity.text.toString()) ?: 0.0).coerceAtLeast(0.0)
-        return Calc.Costs(p, g, nt, mk, eq)
+        val ot = (Calc.parseNum(other.text.toString()) ?: 0.0).coerceAtLeast(0.0)
+        return Calc.Costs(p, g, nt, mk, eq, ot)
     }
 
     private fun recompute() {
@@ -650,12 +655,14 @@ class MainActivity : AppCompatActivity() {
             val nt = (Calc.parseNum(notar.text.toString()) ?: 0.0).coerceAtLeast(0.0)
             val mk = if (brokerCheck.isChecked) (Calc.parseNum(brokerPct.text.toString()) ?: 0.0).coerceAtLeast(0.0) else 0.0
             val eq = (Calc.parseNum(equity.text.toString()) ?: 0.0).coerceAtLeast(0.0)
-            val c = Calc.Costs(p, g, nt, mk, eq)
+            val ot = (Calc.parseNum(other.text.toString()) ?: 0.0).coerceAtLeast(0.0)
+            val c = Calc.Costs(p, g, nt, mk, eq, ot)
             kv(costsBox, "Kaufpreis", eur0.format(c.price))
             kv(costsBox, "Grunderwerbsteuer", eur0.format(c.gAmt), sub = pct(g))
             if (mk > 0) kv(costsBox, "Makler", eur0.format(c.mkAmt), sub = pct(mk))
             kv(costsBox, "Notar und Grundbuch", eur0.format(c.ntAmt), sub = pct(nt))
             kv(costsBox, "Nebenkosten gesamt", eur0.format(c.extra), bold = true, sub = pct(c.extra / c.price * 100) + " vom Kaufpreis")
+            if (ot > 0) kv(costsBox, "Sonstige Anschaffungskosten", eur0.format(c.other))
             kv(costsBox, "Gesamtkosten", eur0.format(c.total))
             kv(costsBox, "abzüglich Eigenkapital", "− " + eur0.format(minOf(eq, c.total)))
             kv(costsBox, "Darlehensbedarf", eur0.format(c.need), color = TEAL, bold = true, line = false)
@@ -749,7 +756,7 @@ class MainActivity : AppCompatActivity() {
         val saveM = base.months - withEx.months
         val hasExtra = withEx.extras > 0.5
         val t1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        t1.addView(tile("Monatliche Rate", eur2.format(base.rate), TEAL, Color.parseColor("#17413A")), LinearLayout.LayoutParams(0, WRAP, 1f))
+        t1.addView(tile("Monatliche Rate", eur2.format(base.rate), RED, Color.parseColor("#3A1212")), LinearLayout.LayoutParams(0, WRAP, 1f))
         t1.addView(tile("Laufzeit mit Sonderzahlung", monthsText(withEx.months), INK, FIELD), LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(8) })
         val t2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         t2.addView(tile("Zinsen gesamt", eur0.format(withEx.interest), INK, FIELD), LinearLayout.LayoutParams(0, WRAP, 1f))
@@ -919,7 +926,7 @@ class MainActivity : AppCompatActivity() {
         val o = JSONObject()
         o.put("price", price.text.toString()).put("state", stateName).put("gest", gest.text.toString())
             .put("notar", notar.text.toString()).put("broker", brokerCheck.isChecked).put("brokerPct", brokerPct.text.toString())
-            .put("equity", equity.text.toString()).put("auto", autoCheck.isChecked).put("amount", amount.text.toString())
+            .put("other", other.text.toString()).put("equity", equity.text.toString()).put("auto", autoCheck.isChecked).put("amount", amount.text.toString())
             .put("rate", rate.text.toString()).put("years", years.text.toString()).put("tilg", tilg.text.toString()).put("bind", bind.text.toString()).put("termMode", termMode).put("startY", startY).put("startM", startM)
             .put("flatMode", flatMode).put("flat", flat.text.toString()).put("flatMonth", flatMonth)
             .put("flatFrom", flatFrom.text.toString()).put("flatTo", flatTo.text.toString())
@@ -933,7 +940,7 @@ class MainActivity : AppCompatActivity() {
             price.setText(o.optString("price", "400.000")); stateName = o.optString("state", stateName)
             gest.setText(o.optString("gest", "5,0")); notar.setText(o.optString("notar", "2,0"))
             brokerCheck.isChecked = o.optBoolean("broker", true); brokerPct.setText(o.optString("brokerPct", "3,57"))
-            equity.setText(o.optString("equity", "80.000")); autoCheck.isChecked = o.optBoolean("auto", true)
+            other.setText(o.optString("other", "")); equity.setText(o.optString("equity", "80.000")); autoCheck.isChecked = o.optBoolean("auto", true)
             amount.setText(o.optString("amount", "320.000")); rate.setText(o.optString("rate", "3,80")); years.setText(o.optString("years", "25"))
             tilg.setText(o.optString("tilg", "2,0")); bind.setText(o.optString("bind", "10")); termMode = o.optInt("termMode", 0).coerceIn(0, 1)
             startY = o.optInt("startY", startY); startM = o.optInt("startM", startM).coerceIn(1, 12)

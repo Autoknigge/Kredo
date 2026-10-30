@@ -170,6 +170,7 @@ object PdfExport {
                 if (cs.mk > 0) w.row("Makler (Käuferprovision)", eur0.format(cs.mkAmt), sub = pct(cs.mk))
                 w.row("Notar und Grundbuch", eur0.format(cs.ntAmt), sub = pct(cs.nt))
                 w.row("Nebenkosten gesamt", eur0.format(cs.extra), bold = true, sub = pct(cs.extra / cs.price * 100) + " vom Kaufpreis")
+                if (cs.other > 0) w.row("Sonstige Anschaffungskosten", eur0.format(cs.other))
                 w.row("Gesamtkosten", eur0.format(cs.total))
                 w.row("abzüglich Eigenkapital", "− " + eur0.format(minOf(cs.eq, cs.total)))
                 w.row("Darlehensbedarf", eur0.format(cs.need), bold = true, color = TEAL)
@@ -180,7 +181,7 @@ object PdfExport {
             w.row("Sollzins pro Jahr", pct(lo.pa))
             if (s.tilgPct != null) w.row("Anfangstilgung", pct(s.tilgPct)) else w.row("Laufzeit bis zur Tilgung", "${lo.years} Jahre")
             w.row("Beginn der Rückzahlung", s.dateOf(1))
-            w.row("Monatliche Rate", eur2.format(s.base.rate), bold = true, color = TEAL)
+            w.row("Monatliche Rate", eur2.format(s.base.rate), bold = true, color = Color.parseColor("#D91E1E"))
 
             w.heading("Sonderzahlungen")
             var any = false
