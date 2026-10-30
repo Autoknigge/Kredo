@@ -59,7 +59,7 @@ object Calc {
         step = nice * mag
         val out = ArrayList<Double>()
         var v = 0.0
-        while (v <= maxV + step * 0.001) { out.add(v); v += step }
+        while (true) { out.add(v); if (v >= maxV - step * 0.001) break; v += step }
         return out
     }
 

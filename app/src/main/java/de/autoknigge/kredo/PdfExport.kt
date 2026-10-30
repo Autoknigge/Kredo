@@ -285,12 +285,12 @@ object PdfExport {
         val ml = 54f
         val mb = 16f
         val pw = w - ml - 6f
-        val ph = h - mb - 4f
+        val ph = h - mb - 22f
         val maxM = max(1, base.months).toDouble()
         val tk = Calc.niceTicks(loan, 4)
         val yMax = tk.last()
         fun x(m: Double) = (x0 + ml + m / maxM * pw).toFloat()
-        fun y(v: Double) = (y0 + 4f + ph - v / yMax * ph).toFloat()
+        fun y(v: Double) = (y0 + 22f + ph - v / yMax * ph).toFloat()
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         p.style = Paint.Style.STROKE; p.strokeWidth = 0.6f; p.color = LINE
         val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = DIM; textSize = 8f; typeface = Typeface.SANS_SERIF }
