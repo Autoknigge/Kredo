@@ -51,11 +51,26 @@ object Calc {
         return if (r > 0) loan * r / (1 - (1 + r).pow(-n)) else loan / n
     }
 
-    /** [extraAt] liefert die Sonderzahlung am Ende von Monat m (1 = erster Monat). */
-    fun simulate(loan: Double, pa: Double, years: Int, extraAt: ((Int) -> Double)?): Sim {
-        val n = years * 12
+    fun niceTicks(maxV: Double, count: Int): List<Double> {
+        var step = maxV / count
+        val mag = 10.0.pow(kotlin.math.floor(kotlin.math.log10(step)))
+        val f = step / mag
+        val nice = if (f <= 1) 1.0 else if (f <= 2) 2.0 else if (f <= 2.5) 2.5 else if (f <= 5) 5.0 else 10.0
+        step = nice * mag
+        val out = ArrayList<Double>()
+        var v = 0.0
+        while (v <= maxV + step * 0.001) { out.add(v); v += step }
+        return out
+    }
+
+    /**
+     * [extraAt] liefert die Sonderzahlung am Ende von Monat m (1 = erster Monat).
+     * Mit [fixedRate] (Anfangstilgung) steht die Monatsrate fest und die Laufzeit ergibt sich (höchstens 50 Jahre).
+     */
+    fun simulate(loan: Double, pa: Double, years: Int, extraAt: ((Int) -> Double)?, fixedRate: Double? = null): Sim {
+        val n = if (fixedRate != null) 600 else years * 12
         val r = pa / 100 / 12
-        val a = annuity(loan, pa, n)
+        val a = fixedRate ?: annuity(loan, pa, n)
         var bal = loan
         var interest = 0.0
         var extras = 0.0
@@ -79,7 +94,7 @@ object Calc {
 
     /** Alle Angaben für die Berechnung des Darlehens. */
     class Loan(
-        val amount: Double, val pa: Double, val years: Int, val startY: Int, val startM: Int,
+        val amount: Double, val pa: Double, val years: Int, val startY: Int, val startM: Int, val fixedRate: Double?,
         val flat: Double, val flatMonth: Int, val flatFrom: Int, val flatTo: Int,
         val singles: Map<Int, Double>
     ) {

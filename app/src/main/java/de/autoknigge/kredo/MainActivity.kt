@@ -74,6 +74,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var amount: EditText
     private lateinit var rate: EditText
     private lateinit var years: EditText
+    private lateinit var tilg: EditText
+    private lateinit var bind: EditText
+    private var termMode = 0
+    private val termButtons = ArrayList<TextView>()
+    private var lastSnap: Snapshot? = null
     private lateinit var flat: EditText
     private lateinit var flatFrom: EditText
     private lateinit var flatTo: EditText
@@ -184,8 +189,25 @@ class MainActivity : AppCompatActivity() {
         amount = addField(dar, "Darlehensbetrag", "€", true)
         val two2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         rate = field("Sollzins pro Jahr", "%", true, two2)
-        years = field("Laufzeit bis zur Tilgung", "Jahre", false, two2)
+        bind = field("Zinsbindung", "Jahre", false, two2)
         dar.addView(two2, lp(top = 10))
+        dar.addView(label("Rückzahlung festlegen über"), lp(top = 12))
+        val seg3 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val tn = arrayOf("Laufzeit", "Anfangstilgung")
+        for (i in tn.indices) {
+            val b = text(tn[i], 13f, DIM, true).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(10), dp(8), dp(10))
+                setOnClickListener { termMode = i; updateTermUi(); schedule() }
+            }
+            termButtons.add(b)
+            seg3.addView(b, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (i > 0) leftMargin = dp(6) })
+        }
+        dar.addView(seg3, lp(top = 4))
+        val two3 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        years = field("Laufzeit bis zur Tilgung", "Jahre", false, two3)
+        tilg = field("Anfangstilgung", "%", true, two3)
+        dar.addView(two3, lp(top = 10))
         dar.addView(label("Beginn der Rückzahlung"), lp(top = 10))
         startButton = button("") { pickStart() }
         dar.addView(startButton, lp(top = 4))
@@ -314,7 +336,7 @@ class MainActivity : AppCompatActivity() {
         if (startM > 12) { startM = 1; startY++ }
         applyDefaults()
         load()
-        for (e in listOf(price, gest, notar, brokerPct, equity, amount, rate, years, flat, flatFrom, flatTo)) {
+        for (e in listOf(price, gest, notar, brokerPct, equity, amount, rate, years, tilg, bind, flat, flatFrom, flatTo)) {
             e.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c2: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c2: Int) {}
@@ -323,6 +345,7 @@ class MainActivity : AppCompatActivity() {
         }
         updateModeUi()
         updateViewUi()
+        updateTermUi()
         renderCustom()
         recompute()
         showIntro { adManager.start() }
@@ -449,7 +472,7 @@ class MainActivity : AppCompatActivity() {
     private fun applyDefaults() {
         price.setText("400.000"); stateName = "Niedersachsen"; gest.setText("5,0"); notar.setText("2,0")
         brokerCheck.isChecked = true; brokerPct.setText("3,57"); equity.setText("80.000"); autoCheck.isChecked = true
-        amount.setText("320.000"); rate.setText("3,80"); years.setText("25")
+        amount.setText("320.000"); rate.setText("3,80"); years.setText("25"); tilg.setText("2,0"); bind.setText("10"); termMode = 0
         flatMode = 1; flat.setText("5.000"); flatMonth = 12; flatFrom.setText("1"); flatTo.setText("")
         custom.clear(); custom.add(Custom("15.000", "36"))
         brokerBox.visibility = View.VISIBLE
@@ -466,7 +489,7 @@ class MainActivity : AppCompatActivity() {
         val c = Calendar.getInstance()
         startY = c.get(Calendar.YEAR); startM = c.get(Calendar.MONTH) + 2
         if (startM > 12) { startM = 1; startY++ }
-        applyDefaults(); updateModeUi(); renderCustom(); recompute()
+        applyDefaults(); updateModeUi(); updateTermUi(); renderCustom(); recompute()
     }
 
     private fun updateModeUi() {
@@ -482,6 +505,20 @@ class MainActivity : AppCompatActivity() {
         flatBox.visibility = if (flatMode == 0) View.GONE else View.VISIBLE
         flatLabel.text = if (flatMode == 2) "Anteil der Darlehenssumme pro Jahr" else "Betrag pro Jahr"
         flatUnit.text = if (flatMode == 2) "%" else "€"
+    }
+
+    private fun updateTermUi() {
+        for ((i, b) in termButtons.withIndex()) {
+            val on = i == termMode
+            b.setTextColor(if (on) TEAL else DIM)
+            b.background = GradientDrawable().apply {
+                setColor(if (on) Color.parseColor("#17413A") else FIELD)
+                setStroke(dp(1), if (on) TEAL else LINE)
+                cornerRadius = dp(9).toFloat()
+            }
+        }
+        (years.parent.parent as View).visibility = if (termMode == 0) View.VISIBLE else View.GONE
+        (tilg.parent.parent as View).visibility = if (termMode == 1) View.VISIBLE else View.GONE
     }
 
     private fun updateViewUi() {
@@ -559,7 +596,7 @@ class MainActivity : AppCompatActivity() {
     private fun monthHint(v: String): String {
         val m = Calc.parseNum(v)?.toInt() ?: return "Monat der Zahlung"
         if (m < 1) return "Monat der Zahlung"
-        val n = (Calc.parseNum(years.text.toString())?.toInt() ?: 0) * 12
+        val n = if (termMode == 1) 600 else (Calc.parseNum(years.text.toString())?.toInt() ?: 0) * 12
         if (m > n) return "Nach Ende der Laufzeit"
         return "Jahr ${(m + 11) / 12} · ${dateOf(m)}"
     }
@@ -590,6 +627,16 @@ class MainActivity : AppCompatActivity() {
     private fun schedule() {
         main.removeCallbacks(recomputeTask)
         main.postDelayed(recomputeTask, 180)
+    }
+
+    private fun costsNow(): Calc.Costs? {
+        val p = Calc.parseNum(price.text.toString()) ?: return null
+        if (p <= 0) return null
+        val g = (Calc.parseNum(gest.text.toString()) ?: 0.0).coerceAtLeast(0.0)
+        val nt = (Calc.parseNum(notar.text.toString()) ?: 0.0).coerceAtLeast(0.0)
+        val mk = if (brokerCheck.isChecked) (Calc.parseNum(brokerPct.text.toString()) ?: 0.0).coerceAtLeast(0.0) else 0.0
+        val eq = (Calc.parseNum(equity.text.toString()) ?: 0.0).coerceAtLeast(0.0)
+        return Calc.Costs(p, g, nt, mk, eq)
     }
 
     private fun recompute() {
@@ -630,10 +677,17 @@ class MainActivity : AppCompatActivity() {
         val errs = ArrayList<String>()
         val loan = Calc.parseNum(amount.text.toString())
         val pa = Calc.parseNum(rate.text.toString())
-        val yrs = Calc.parseNum(years.text.toString())
+        val yrs = if (termMode == 0) Calc.parseNum(years.text.toString()) else 30.0
+        val tl = Calc.parseNum(tilg.text.toString())
         if (loan == null || loan < 1000) errs.add("Bitte einen Darlehensbetrag ab 1.000 € eingeben.")
         if (pa == null || pa < 0 || pa > 20) errs.add("Der Zinssatz sollte zwischen 0 und 20 % liegen.")
-        if (yrs == null || yrs < 1 || yrs > 50) errs.add("Die Laufzeit sollte zwischen 1 und 50 Jahren liegen.")
+        if (termMode == 0 && (yrs == null || yrs < 1 || yrs > 50)) errs.add("Die Laufzeit sollte zwischen 1 und 50 Jahren liegen.")
+        if (termMode == 1 && (tl == null || tl < 0.1 || tl > 20)) errs.add("Die Anfangstilgung sollte zwischen 0,1 und 20 % liegen.")
+        var fixed: Double? = null
+        if (errs.isEmpty() && termMode == 1) {
+            fixed = loan!! * (pa!! + tl!!) / 100 / 12
+            if (fixed <= loan * pa / 100 / 12 + 0.01) errs.add("Mit dieser Rate sinkt die Schuld nicht. Bitte eine höhere Anfangstilgung wählen.")
+        }
         if (errs.isNotEmpty()) {
             errorText.text = errs.joinToString(" ")
             errorText.visibility = View.VISIBLE
@@ -664,11 +718,25 @@ class MainActivity : AppCompatActivity() {
             val mo = Calc.parseNum(c.month)?.let { Math.round(it).toInt() } ?: continue
             if (a > 0 && mo in 1..n) singles[mo] = (singles[mo] ?: 0.0) + a
         }
-        val lo = Calc.Loan(loan!!, pa!!, Math.round(yrs).toInt(), startY, startM, flatAmt, flatMonth, from, to, singles)
-        val base = Calc.simulate(lo.amount, lo.pa, lo.years, null)
-        val withEx = Calc.simulate(lo.amount, lo.pa, lo.years) { lo.extraAt(it) }
+        val lo = Calc.Loan(loan!!, pa!!, Math.round(yrs).toInt(), startY, startM, fixed, flatAmt, flatMonth, from, to, singles)
+        val base = Calc.simulate(lo.amount, lo.pa, lo.years, null, fixed)
+        val withEx = Calc.simulate(lo.amount, lo.pa, lo.years, { lo.extraAt(it) }, fixed)
+        if (fixed != null && base.rows.last().bal > 0.5) {
+            errorText.text = "Mit dieser Rate ist das Darlehen nach 50 Jahren nicht getilgt. Bitte eine höhere Anfangstilgung wählen."
+            errorText.visibility = View.VISIBLE
+            resultBox.visibility = View.GONE; chartCard.visibility = View.GONE; planCard.visibility = View.GONE
+            return
+        }
         lastSim = withEx
         lastLoan = lo
+        val bindYears = Calc.parseNum(bind.text.toString())?.let { Math.round(it).toInt() }?.takeIf { it in 1..50 }
+        val flatText = when {
+            flatAmt <= 0 -> ""
+            flatMode == 2 -> "${String.format(Locale.GERMANY, "%.2f", Calc.parseNum(flat.text.toString()) ?: 0.0).trimEnd('0').trimEnd(',')} % der Darlehenssumme pro Jahr (${eur0.format(flatAmt)}), im ${MONTHS_LONG[flatMonth - 1]}, ab Jahr $from" + if (to != Int.MAX_VALUE) " bis Jahr $to" else ""
+            else -> "${eur0.format(flatAmt)} pro Jahr, im ${MONTHS_LONG[flatMonth - 1]}, ab Jahr $from" + if (to != Int.MAX_VALUE) " bis Jahr $to" else ""
+        }
+        val cs = costsNow()
+        lastSnap = Snapshot(cs, stateName, brokerCheck.isChecked, lo, if (termMode == 1) tl else null, base, withEx, bindYears, flatText, singles.toSortedMap()) { dateOf(it) }
         renderResults(lo, base, withEx)
         chart.set(lo.amount, base, withEx)
         renderPlan()
@@ -712,6 +780,20 @@ class MainActivity : AppCompatActivity() {
             lp(top = 10)
         )
 
+        val bindYears = Calc.parseNum(bind.text.toString())?.let { Math.round(it).toInt() }?.takeIf { it in 1..50 }
+        if (bindYears != null) {
+            val rest = if (bindYears * 12 > withEx.rows.size) 0.0 else withEx.rows[bindYears * 12 - 1].bal
+            resultBox.addView(
+                text("Restschuld nach $bindYears Jahren (Ende der Zinsbindung): ${eur0.format(rest)}", 13f, TEAL, true),
+                lp(top = 8)
+            )
+        }
+        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        bar.addView(button("📄  PDF teilen") { exportPdf(0) }.apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, WRAP, 1.3f))
+        bar.addView(button("🖨  Drucken") { exportPdf(1) }.apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(6) })
+        bar.addView(button("💾") { exportPdf(2) }.apply { gravity = Gravity.CENTER; contentDescription = "PDF speichern" }, LinearLayout.LayoutParams(0, WRAP, 0.5f).apply { leftMargin = dp(6) })
+        resultBox.addView(bar, lp(top = 14))
+
         // Hinweis auf die übliche Grenze von 5 % pro Jahr
         val perYear = HashMap<Int, Double>()
         for (r in withEx.rows) if (r.extra > 0) perYear[(r.m + 11) / 12] = (perYear[(r.m + 11) / 12] ?: 0.0) + r.extra
@@ -720,6 +802,69 @@ class MainActivity : AppCompatActivity() {
             limitNote.text = "Im stärksten Jahr sind das ${eur0.format(worst)} (${String.format(Locale.GERMANY, "%.1f", worst / lo.amount * 100)} % der Darlehenssumme). Viele Verträge erlauben kostenlos nur 5 %, manchmal 10 % pro Jahr. Prüfe deine Konditionen."
             limitNote.visibility = View.VISIBLE
         } else limitNote.visibility = View.GONE
+    }
+
+    /** Erstellt die PDF-Übersicht und teilt, druckt oder speichert sie (0 = teilen, 1 = drucken, 2 = speichern). */
+    private fun exportPdf(action: Int) {
+        val snap = lastSnap ?: return
+        Thread {
+            val r = runCatching { PdfExport.build(this, snap) }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                r.onFailure { android.widget.Toast.makeText(this, "Die PDF konnte nicht erstellt werden.", android.widget.Toast.LENGTH_LONG).show() }
+                r.onSuccess { file ->
+                    when (action) {
+                        0 -> {
+                            val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.files", file)
+                            val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "application/pdf"
+                                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                putExtra(android.content.Intent.EXTRA_SUBJECT, "Finanzierungsübersicht (Kredo)")
+                                clipData = android.content.ClipData.newRawUri("", uri)
+                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            try {
+                                startActivity(android.content.Intent.createChooser(send, "PDF senden an"))
+                            } catch (e: android.content.ActivityNotFoundException) {
+                                android.widget.Toast.makeText(this, "Keine App zum Senden gefunden.", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        1 -> printPdf(file)
+                        else -> {
+                            val saved = runCatching { PdfExport.saveToDownloads(this, file, "Kredo_Finanzierung.pdf") }
+                            android.widget.Toast.makeText(
+                                this,
+                                if (saved.isSuccess) "Gespeichert in „Downloads/${PdfExport.FOLDER}“." else "Die PDF konnte nicht gespeichert werden.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun printPdf(file: java.io.File) {
+        val pm = getSystemService(PRINT_SERVICE) as android.print.PrintManager
+        val adapter = object : android.print.PrintDocumentAdapter() {
+            override fun onLayout(old: android.print.PrintAttributes?, attrs: android.print.PrintAttributes?, cancel: android.os.CancellationSignal?, cb: LayoutResultCallback, extras: Bundle?) {
+                if (cancel?.isCanceled == true) { cb.onLayoutCancelled(); return }
+                cb.onLayoutFinished(
+                    android.print.PrintDocumentInfo.Builder("Kredo_Finanzierung.pdf")
+                        .setContentType(android.print.PrintDocumentInfo.CONTENT_TYPE_DOCUMENT).build(), true
+                )
+            }
+
+            override fun onWrite(pages: Array<out android.print.PageRange>?, dest: android.os.ParcelFileDescriptor, cancel: android.os.CancellationSignal?, cb: WriteResultCallback) {
+                try {
+                    java.io.FileInputStream(file).use { i -> java.io.FileOutputStream(dest.fileDescriptor).use { o -> i.copyTo(o) } }
+                    cb.onWriteFinished(arrayOf(android.print.PageRange.ALL_PAGES))
+                } catch (e: Exception) {
+                    cb.onWriteFailed(e.message)
+                }
+            }
+        }
+        pm.print("Kredo Finanzierung", adapter, null)
     }
 
     private fun renderPlan() {
@@ -775,7 +920,7 @@ class MainActivity : AppCompatActivity() {
         o.put("price", price.text.toString()).put("state", stateName).put("gest", gest.text.toString())
             .put("notar", notar.text.toString()).put("broker", brokerCheck.isChecked).put("brokerPct", brokerPct.text.toString())
             .put("equity", equity.text.toString()).put("auto", autoCheck.isChecked).put("amount", amount.text.toString())
-            .put("rate", rate.text.toString()).put("years", years.text.toString()).put("startY", startY).put("startM", startM)
+            .put("rate", rate.text.toString()).put("years", years.text.toString()).put("tilg", tilg.text.toString()).put("bind", bind.text.toString()).put("termMode", termMode).put("startY", startY).put("startM", startM)
             .put("flatMode", flatMode).put("flat", flat.text.toString()).put("flatMonth", flatMonth)
             .put("flatFrom", flatFrom.text.toString()).put("flatTo", flatTo.text.toString())
         o.put("custom", JSONArray().apply { custom.forEach { put(JSONObject().put("a", it.amount).put("m", it.month)) } })
@@ -790,6 +935,7 @@ class MainActivity : AppCompatActivity() {
             brokerCheck.isChecked = o.optBoolean("broker", true); brokerPct.setText(o.optString("brokerPct", "3,57"))
             equity.setText(o.optString("equity", "80.000")); autoCheck.isChecked = o.optBoolean("auto", true)
             amount.setText(o.optString("amount", "320.000")); rate.setText(o.optString("rate", "3,80")); years.setText(o.optString("years", "25"))
+            tilg.setText(o.optString("tilg", "2,0")); bind.setText(o.optString("bind", "10")); termMode = o.optInt("termMode", 0).coerceIn(0, 1)
             startY = o.optInt("startY", startY); startM = o.optInt("startM", startM).coerceIn(1, 12)
             flatMode = o.optInt("flatMode", 1).coerceIn(0, 2); flat.setText(o.optString("flat", "")); flatMonth = o.optInt("flatMonth", 12).coerceIn(1, 12)
             flatFrom.setText(o.optString("flatFrom", "1")); flatTo.setText(o.optString("flatTo", ""))
@@ -798,6 +944,7 @@ class MainActivity : AppCompatActivity() {
             if (a != null) for (i in 0 until minOf(a.length(), 3)) custom.add(Custom(a.getJSONObject(i).optString("a"), a.getJSONObject(i).optString("m")))
             brokerBox.visibility = if (brokerCheck.isChecked) View.VISIBLE else View.GONE
             refreshButtons()
+            updateTermUi()
         } catch (e: Exception) {
             // Standardwerte bleiben
         }
