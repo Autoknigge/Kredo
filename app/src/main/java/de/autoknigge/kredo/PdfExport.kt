@@ -2,11 +2,14 @@ package de.autoknigge.kredo
 
 import android.content.ContentValues
 import android.content.Context
+import android.graphics.BitmapFactory
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
@@ -64,7 +67,7 @@ object PdfExport {
 
     private fun pct(x: Double): String = String.format(Locale.GERMANY, "%.2f", x).trimEnd('0').trimEnd(',') + " %"
 
-    private class Writer(val doc: PdfDocument) {
+    private class Writer(val doc: PdfDocument, val logo: Bitmap?) {
         var page: PdfDocument.Page? = null
         var c: Canvas? = null
         var y = M
@@ -78,6 +81,26 @@ object PdfExport {
             page = doc.startPage(PdfDocument.PageInfo.Builder(W, H, n).create())
             c = page!!.canvas
             y = M
+            header()
+        }
+
+        /** Kopf jeder Seite: buntes Logo links, daneben der Hinweis, wer die Übersicht bereitstellt. */
+        private fun header() {
+            val cv = c!!
+            val lw = 150f
+            val lh = if (logo != null) lw * logo.height / logo.width else 53f
+            if (logo != null) cv.drawBitmap(logo, null, RectF(M, y, M + lw, y + lh), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+            val tx = M + lw + 16f
+            text.textAlign = Paint.Align.LEFT
+            text.typeface = Typeface.SANS_SERIF; text.textSize = 8.5f; text.color = DIM
+            cv.drawText("bereitgestellt durch", tx, y + lh / 2 - 9f, text)
+            text.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD); text.textSize = 14f; text.color = TEAL
+            cv.drawText("Kredo Immorechner", tx, y + lh / 2 + 7f, text)
+            text.typeface = Typeface.SANS_SERIF; text.textSize = 9.5f; text.color = DIM
+            cv.drawText("von autoknigge.de", tx, y + lh / 2 + 21f, text)
+            y += lh + 8f
+            cv.drawLine(M, y, W - M, y, line)
+            y += 10f
         }
 
         fun finish() {
@@ -146,20 +169,20 @@ object PdfExport {
 
     fun build(ctx: Context, s: Snapshot): File {
         val doc = PdfDocument()
-        val w = Writer(doc)
+        val logo = try { BitmapFactory.decodeResource(ctx.resources, R.drawable.logo_kredo) } catch (e: Throwable) { null }
+        val w = Writer(doc, logo)
         try {
             w.newPage()
             val c = w.c!!
             // Titel
-            w.text.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD); w.text.textSize = 22f; w.text.color = TEAL
-            c.drawText("Kredo", M, w.y + 20f, w.text)
-            w.text.typeface = Typeface.SANS_SERIF; w.text.textSize = 11f; w.text.color = DIM
-            c.drawText("Finanzierungsübersicht Immobilie", M + 78f, w.y + 19f, w.text)
+            w.text.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD); w.text.textSize = 17f; w.text.color = TEAL
+            c.drawText("Finanzierungsübersicht Immobilie", M, w.y + 15f, w.text)
             val cal = Calendar.getInstance()
+            w.text.typeface = Typeface.SANS_SERIF; w.text.textSize = 9.5f; w.text.color = DIM
             w.text.textAlign = Paint.Align.RIGHT
-            c.drawText(String.format(Locale.GERMANY, "Stand: %02d.%02d.%d", cal.get(Calendar.DAY_OF_MONTH), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.YEAR)), W - M, w.y + 19f, w.text)
+            c.drawText(String.format(Locale.GERMANY, "Stand: %02d.%02d.%d", cal.get(Calendar.DAY_OF_MONTH), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.YEAR)), W - M, w.y + 15f, w.text)
             w.text.textAlign = Paint.Align.LEFT
-            w.y += 30f
+            w.y += 24f
 
             val lo = s.lo
             val cs = s.costs
@@ -218,14 +241,16 @@ object PdfExport {
                 w.row("Restschuld nach ${s.bindYears} Jahren (Ende der Zinsbindung)", eur0.format(rest), bold = true)
             }
 
-            // Diagramm
+            // Diagramm auf einem eigenen Blatt
+            w.newPage()
             w.heading("Restschuld im Verlauf")
-            val ch = 170f
-            w.ensure(ch + 20f)
+            val ch = 330f
             drawChart(w.c!!, M, w.y + 4f, W - 2 * M, ch, lo.amount, s.base, s.withEx)
-            w.y += ch + 12f
+            w.y += ch + 14f
+            w.paragraph("Die durchgezogene Linie zeigt die Restschuld mit Sonderzahlungen, die gestrichelte ohne. Die Punkte markieren die Sonderzahlungen. Unten steht die Zeit in Jahren seit Beginn der Rückzahlung.", 9f, DIM)
 
-            // Tilgungsplan pro Jahr
+            // Tilgungsplan pro Jahr auf dem nächsten Blatt
+            w.newPage()
             w.heading("Tilgungsplan pro Jahr")
             val tx = listOf(0f, M + 150f, M + 255f, M + 365f, W - M)
             val head = listOf("Jahr", "Zinsen", "Tilgung", "Sonderzahlung", "Restschuld")
