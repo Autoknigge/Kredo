@@ -154,7 +154,6 @@ class MainActivity : AppCompatActivity() {
         val ver = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         logoBox.addView(text(ver, 10f, DIM), FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP or Gravity.END))
         col.addView(logoBox, LinearLayout.LayoutParams(MATCH, WRAP))
-        col.addView(text("Kaufnebenkosten und Immobiliendarlehen mit Sonderzahlungen", 13f, DIM).apply { gravity = Gravity.CENTER })
 
         // --- Kauf und Nebenkosten
         val kauf = card("Kauf und Nebenkosten")
